@@ -55,22 +55,21 @@ class S3ToMySqlLoadOperator(BaseOperator):
             raise RuntimeError('no file to process')
 
         with TemporaryDirectory(prefix='airflow_mysqlloadop_') as tmp_dir:
-            mysql_infiles = []
+            with NamedTemporaryFile('ab', dir=tmp_dir, delete=False) as tmp:
+                for s3_infile in s3_infiles:
+                    self.log.info('Download s3://%s/%s', self.s3_bucket, s3_infile)
 
-            for s3_infile in s3_infiles:
-                self.log.info('Download s3://%s/%s', self.s3_bucket, s3_infile)
+                    s3_obj = s3_hook.get_key(s3_infile, self.s3_bucket)
+                    if s3_obj.content_type == 'application/x-directory':
+                        self.log.info('Skip directory: s3://%s/%s',
+                                      self.s3_bucket, s3_infile)
+                        continue
 
-                s3_obj = s3_hook.get_key(s3_infile, self.s3_bucket)
-                if s3_obj.content_type == 'application/x-directory':
-                    self.log.info('Skip directory: s3://%s/%s',
-                                  self.s3_bucket, s3_infile)
-                    continue
-
-                with NamedTemporaryFile('wb', dir=tmp_dir, delete=False) as tmp:
                     s3_obj.download_fileobj(tmp)
-                    mysql_infiles.append(tmp.name)
 
-            self.log.info('MySQL infiles: %s', mysql_infiles)
+                mysql_infile = tmp.name
+
+            self.log.info('MySQL infile: %s', mysql_infile)
 
             mysql_sql_fmt = '''
                 LOAD DATA LOCAL INFILE '{file}'
@@ -81,14 +80,13 @@ class S3ToMySqlLoadOperator(BaseOperator):
                 ({fields})
                 ;
             '''
-            mysql_sql = ''.join(mysql_sql_fmt.format(file=infile,
-                                                     database=self.mysql_database,
-                                                     table=self.mysql_table,
-                                                     seps=self.mysql_inseps,
-                                                     fields=mysql_infields)
-                                for infile in mysql_infiles)
+            mysql_sql = mysql_sql_fmt.format(file=mysql_infile,
+                                             database=self.mysql_database,
+                                             table=self.mysql_table,
+                                             seps=self.mysql_inseps,
+                                             fields=mysql_infields)
 
-            self.log.info('Execute SQLs')
+            self.log.info('Execute SQL')
             mysql_hook.run(mysql_sql)
 
 
