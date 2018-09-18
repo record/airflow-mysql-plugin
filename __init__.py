@@ -4,6 +4,7 @@ from airflow.models import BaseOperator
 from airflow.hooks.mysql_hook import MySqlHook
 from airflow.hooks.S3_hook import S3Hook
 from airflow.plugins_manager import AirflowPlugin
+from airflow.utils.decorators import apply_defaults
 from airflow.utils.file import TemporaryDirectory
 
 
@@ -15,6 +16,7 @@ class S3ToMySqlLoadOperator(BaseOperator):
                        'mysql_infields')
     template_ext = tuple()
 
+    @apply_defaults
     def __init__(self,
                  aws_conn_id='aws_default',
                  s3_bucket=None,
