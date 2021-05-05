@@ -1,8 +1,8 @@
 from tempfile import NamedTemporaryFile
 
-from airflow.models import BaseOperator
 from airflow.hooks.mysql_hook import MySqlHook
 from airflow.hooks.S3_hook import S3Hook
+from airflow.models import BaseOperator
 from airflow.plugins_manager import AirflowPlugin
 from airflow.utils.decorators import apply_defaults
 from airflow.utils.file import TemporaryDirectory
@@ -57,7 +57,7 @@ class S3ToMySqlLoadOperator(BaseOperator):
             raise RuntimeError('no file to process')
 
         with TemporaryDirectory(prefix='airflow_mysqlloadop_') as tmp_dir:
-            with NamedTemporaryFile('ab', dir=tmp_dir, delete=False) as tmp:
+            with open('{}/{}'.format(tmp_dir, 'numstats'), 'ab') as tmp:
                 for s3_infile in s3_infiles:
                     self.log.info('Download s3://%s/%s', self.s3_bucket, s3_infile)
 
