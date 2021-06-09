@@ -1,4 +1,5 @@
-from tempfile import NamedTemporaryFile
+from contextlib import closing
+import shutil
 
 from airflow.models import BaseOperator
 from airflow.hooks.mysql_hook import MySqlHook
@@ -57,7 +58,10 @@ class S3ToMySqlLoadOperator(BaseOperator):
             raise RuntimeError('no file to process')
 
         with TemporaryDirectory(prefix='airflow_mysqlloadop_') as tmp_dir:
-            with NamedTemporaryFile('ab', dir=tmp_dir, delete=False) as tmp:
+            mysql_infile = '{}/{}'.format(tmp_dir, 'numstats')
+            self.log.info('MySQL infile: %s', mysql_infile)
+
+            with open(mysql_infile, mode='wb') as tmp:
                 for s3_infile in s3_infiles:
                     self.log.info('Download s3://%s/%s', self.s3_bucket, s3_infile)
 
@@ -67,11 +71,8 @@ class S3ToMySqlLoadOperator(BaseOperator):
                                       self.s3_bucket, s3_infile)
                         continue
 
-                    s3_obj.download_fileobj(tmp)
-
-                mysql_infile = tmp.name
-
-            self.log.info('MySQL infile: %s', mysql_infile)
+                    with closing(s3_obj.get()['Body']) as s3_body:
+                        shutil.copyfileobj(s3_body, tmp)
 
             mysql_sql_fmt = '''
                 LOAD DATA LOCAL INFILE '{file}'
